@@ -1,0 +1,2003 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ApexType — Nitro Typing Racer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: JetBrains Mono for Monkeytype feel + Orbitron & Inter for Racing Telemetry -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Orbitron:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                        display: ['Orbitron', 'sans-serif'],
+                    },
+                    colors: {
+                        mt: {
+                            bg: '#18191c',
+                            panel: '#212226',
+                            sub: '#646669',
+                            text: '#d1d0c5',
+                            main: '#e2b714',
+                            error: '#ca4754',
+                            cyan: '#00f0ff',
+                            emerald: '#10b981'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background-color: #141518;
+            color: #d1d0c5;
+            overflow-x: hidden;
+        }
+
+        /* Monkeytype Typing Container */
+        #words-wrapper {
+            position: relative;
+            height: 144px; /* 3 visible lines at 48px line-height */
+            overflow: hidden;
+            mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+        }
+
+        #words-container {
+            position: relative;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.55rem;
+            line-height: 48px;
+            letter-spacing: 0.02em;
+            transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+            will-change: transform;
+        }
+
+        @media (max-width: 640px) {
+            #words-container {
+                font-size: 1.2rem;
+                line-height: 40px;
+            }
+            #words-wrapper {
+                height: 120px;
+            }
+        }
+
+        .word {
+            display: inline-block;
+            margin-right: 0;
+            position: relative;
+            white-space: nowrap;
+        }
+
+        .char {
+            display: inline-block;
+            position: relative;
+            color: #5c5e64;
+            transition: color 0.05s ease, background-color 0.05s ease;
+            border-radius: 3px;
+        }
+
+        .char.space-char {
+            width: 0.62em;
+            text-align: center;
+        }
+
+        .char.space-char::after {
+            content: '·';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.22;
+            font-size: 0.75em;
+            pointer-events: none;
+        }
+
+        .char.correct {
+            color: #10b981;
+            text-shadow: 0 0 8px rgba(16, 185, 129, 0.22);
+        }
+
+        .char.correct.nitro-char {
+            color: #00f0ff;
+            text-shadow: 0 0 10px rgba(0, 240, 255, 0.35);
+        }
+
+        .char.incorrect {
+            color: #ff4d5e;
+            background: rgba(255, 77, 94, 0.18);
+            border-bottom: 2px solid #ff4d5e;
+        }
+
+        .char.space-char.incorrect::after {
+            content: '␣';
+            opacity: 0.95;
+            color: #ff4d5e;
+            font-size: 0.7em;
+        }
+
+        /* Gliding Monkeytype Caret */
+        #caret {
+            position: absolute;
+            width: 3px;
+            height: 34px;
+            background-color: #e2b714;
+            border-radius: 3px;
+            box-shadow: 0 0 10px rgba(226, 183, 20, 0.85);
+            transition: transform 0.055s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+            z-index: 20;
+            left: 0;
+            top: 0;
+        }
+
+        #caret.blink {
+            animation: caretPulse 1.05s infinite ease-in-out;
+        }
+
+        #caret.nitro-caret {
+            background-color: #00f0ff;
+            box-shadow: 0 0 14px #00f0ff, 0 0 24px rgba(0, 240, 255, 0.6);
+        }
+
+        @keyframes caretPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.15; }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #18191c;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #34373c;
+            border-radius: 3px;
+        }
+
+        /* RPM Gauge Bar Glow */
+        .nitro-glow {
+            box-shadow: 0 0 16px rgba(0, 240, 255, 0.45);
+        }
+
+        .gold-glow {
+            box-shadow: 0 0 16px rgba(226, 183, 20, 0.35);
+        }
+
+        /* Canvas container */
+        #race-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-mt-main selection:text-black">
+
+    <!-- TOP NAVIGATION & CONFIG BAR -->
+    <header class="w-full max-w-7xl mx-auto px-3 sm:px-6 pt-3 pb-2 flex flex-wrap items-center justify-between gap-2 border-b border-white/5">
+        <!-- Brand Logo -->
+        <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-mt-main to-amber-600 flex items-center justify-center text-black shadow-lg shadow-mt-main/20">
+                <i class="ph-fill ph-steering-wheel text-xl"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="font-display font-extrabold text-lg tracking-wider text-white">APEX<span class="text-mt-main">TYPE</span></span>
+                    <span class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-mt-main/15 text-mt-main border border-mt-main/30">Nitro v2.4</span>
+                </div>
+                <p class="text-[11px] text-mt-sub hidden sm:block">Accuracy + WPM = Real-Time Horsepower</p>
+            </div>
+        </div>
+
+        <!-- Monkeytype-Style Pill Settings Bar -->
+        <div class="flex flex-wrap items-center gap-1.5 bg-mt-panel/90 border border-white/5 rounded-xl px-2.5 py-1.5 text-xs font-mono">
+            <!-- AI Difficulty Selector -->
+            <div class="flex items-center gap-1 pr-2 border-r border-white/10">
+                <span class="text-mt-sub mr-1 hidden md:inline"><i class="ph ph-robot mr-1"></i>AI:</span>
+                <button data-ai="38" class="ai-btn px-2 py-1 rounded-md text-mt-sub hover:text-white transition">Rookie <span class="text-[10px] opacity-70">38</span></button>
+                <button data-ai="58" class="ai-btn active px-2 py-1 rounded-md bg-mt-main/20 text-mt-main font-semibold transition">Pro <span class="text-[10px] opacity-80">58</span></button>
+                <button data-ai="82" class="ai-btn px-2 py-1 rounded-md text-mt-sub hover:text-white transition">Apex <span class="text-[10px] opacity-70">82</span></button>
+                <button data-ai="108" class="ai-btn px-2 py-1 rounded-md text-mt-sub hover:text-white transition">Hyper <span class="text-[10px] opacity-70">108</span></button>
+            </div>
+
+            <!-- Passage Theme Selector -->
+            <div class="flex items-center gap-1 pr-2 border-r border-white/10">
+                <button data-mode="motorsport" class="mode-btn active px-2 py-1 rounded-md bg-white/10 text-white transition" title="Motorsport & Racing Prompts">Motorsport</button>
+                <button data-mode="common" class="mode-btn px-2 py-1 rounded-md text-mt-sub hover:text-white transition" title="Monkeytype Common Vocabulary">Words</button>
+                <button data-mode="code" class="mode-btn px-2 py-1 rounded-md text-mt-sub hover:text-white transition" title="Programming & Tech">CyberTech</button>
+            </div>
+
+            <!-- Typing Error Mode Toggle (Flow vs Strict) -->
+            <div class="flex items-center gap-1 pr-2 border-r border-white/10">
+                <button id="strict-toggle-btn" class="px-2 py-1 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition flex items-center gap-1" title="Toggle Flow Mode (Standard Monkeytype) vs Strict Mode (Stop on Error)">
+                    <i id="strict-icon" class="ph-fill ph-waves"></i>
+                    <span id="strict-label">Flow Mode</span>
+                </button>
+            </div>
+
+            <!-- Player & AI Vehicle Style Toggles (Car vs Superbike!) -->
+            <div class="flex items-center gap-1 pr-2 border-r border-white/10">
+                <button id="vehicle-toggle-btn" class="px-2 py-1 rounded-md bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25 transition flex items-center gap-1" title="Switch Your Vehicle (Standard Car / Standard Bike)">
+                    <i id="vehicle-icon" class="ph-fill ph-car-profile"></i>
+                    <span id="vehicle-label">You: Car</span>
+                </button>
+                <button id="ai-vehicle-toggle-btn" class="px-2 py-1 rounded-md bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25 transition flex items-center gap-1" title="Switch AI Rival Vehicle (Standard Bike / Standard Car)">
+                    <i id="ai-vehicle-icon" class="ph-fill ph-motorcycle"></i>
+                    <span id="ai-vehicle-label">AI: Bike</span>
+                </button>
+            </div>
+
+            <!-- Unit & Sound Toggles -->
+            <div class="flex items-center gap-1">
+                <button id="unit-toggle-btn" class="px-2 py-1 rounded-md text-mt-sub hover:text-white transition" title="Toggle KM/H or MPH">KM/H</button>
+                <button id="sound-toggle-btn" class="px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition flex items-center gap-1" title="Toggle Synthesized Engine & Key Audio">
+                    <i id="sound-icon" class="ph-fill ph-speaker-high"></i>
+                    <span id="sound-label" class="hidden sm:inline">Audio ON</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT AREA: TOP RACE TRACK + TELEMETRY + BOTTOM MONKEYTYPE -->
+    <main class="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 py-2 flex flex-col gap-3 justify-between">
+
+        <!-- ============================================================== -->
+        <!-- TOP HALF: 2-CAR RACE TRACK CANVAS + MINI PROGRESS + TELEMETRY  -->
+        <!-- ============================================================== -->
+        <section class="w-full flex flex-col gap-2">
+            <!-- Mini Track Progress Bar (0% Start -> 100% Finish) -->
+            <div class="bg-mt-panel/90 border border-white/10 rounded-xl px-3 py-2 flex items-center gap-3">
+                <div class="flex items-center gap-1.5 text-xs font-mono text-mt-sub shrink-0">
+                    <i class="ph-fill ph-flag-checkered text-mt-main"></i>
+                    <span>LAP PROGRESS</span>
+                </div>
+
+                <div class="relative flex-1 h-5 bg-black/50 rounded-full overflow-hidden border border-white/10 p-0.5">
+                    <!-- Checkered finish strip on right -->
+                    <div class="absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-b from-white via-black to-white opacity-60"></div>
+
+                    <!-- AI Progress Marker -->
+                    <div id="ai-mini-bar" class="position-transition absolute top-1 h-1.5 bg-rose-500/70 rounded-full transition-all duration-100" style="width: 2%;"></div>
+                    <div id="ai-mini-dot" class="position-transition absolute top-0.5 -ml-2 w-4 h-4 rounded-full bg-rose-500 border border-white flex items-center justify-center text-[8px] font-bold text-white shadow" style="left: 2%;" title="AI Rival">AI</div>
+
+                    <!-- Player Progress Marker -->
+                    <div id="player-mini-bar" class="position-transition absolute bottom-1 h-1.5 bg-gradient-to-r from-mt-main to-cyan-400 rounded-full transition-all duration-100" style="width: 2%;"></div>
+                    <div id="player-mini-dot" class="position-transition absolute bottom-0.5 -ml-2 w-4 h-4 rounded-full bg-mt-main border border-black flex items-center justify-center text-[8px] font-extrabold text-black shadow-md" style="left: 2%;" title="You">P1</div>
+                </div>
+
+                <!-- Gap / Lead Indicator -->
+                <div id="race-gap-badge" class="text-xs font-mono px-2.5 py-0.5 rounded-md bg-white/5 text-mt-text border border-white/10 shrink-0">
+                    GRID READY
+                </div>
+            </div>
+
+            <!-- Interactive 2-Car Racing Canvas Container -->
+            <div class="relative w-full h-48 sm:h-56 md:h-64 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-[#0d0e12]">
+                <canvas id="race-canvas"></canvas>
+
+                <!-- Top-Left Live Race Position & Status Overlay -->
+                <div class="absolute top-3 left-3 flex items-center gap-2 pointer-events-none">
+                    <div id="position-badge" class="px-3 py-1 rounded-lg bg-black/75 backdrop-blur-md border border-white/15 flex items-center gap-2">
+                        <span class="text-[11px] font-mono text-mt-sub uppercase">POS</span>
+                        <span id="live-rank" class="font-display font-black text-lg text-mt-main">P1</span>
+                        <span class="text-xs text-white/40">/ 2</span>
+                    </div>
+
+                    <div id="nitro-status-pill" class="px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md border border-cyan-500/30 flex items-center gap-1.5 opacity-60 transition-opacity">
+                        <i class="ph-fill ph-fire text-cyan-400"></i>
+                        <span class="text-[11px] font-mono text-cyan-300">STREAK: <strong id="streak-count">0</strong>x</span>
+                    </div>
+                </div>
+
+                <!-- Top-Right Gear & RPM Telemetry Overlay -->
+                <div class="absolute top-3 right-3 flex items-center gap-2 pointer-events-none">
+                    <div class="px-3 py-1 rounded-lg bg-black/75 backdrop-blur-md border border-white/15 flex items-center gap-2.5">
+                        <div class="text-right">
+                            <div class="text-[9px] font-mono text-mt-sub uppercase">RPM / BOOST</div>
+                            <div class="w-20 h-2 bg-white/10 rounded-full overflow-hidden mt-0.5">
+                                <div id="rpm-bar" class="h-full bg-gradient-to-r from-emerald-400 via-mt-main to-rose-500 transition-all duration-75" style="width: 12%;"></div>
+                            </div>
+                        </div>
+                        <div class="pl-2 border-l border-white/15 text-center">
+                            <div class="text-[9px] font-mono text-mt-sub">GEAR</div>
+                            <div id="gear-display" class="font-display font-black text-base text-white leading-none">N</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Center Countdown / Start Banner -->
+                <div id="track-banner" class="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300 opacity-100">
+                    <div class="px-5 py-2.5 rounded-2xl bg-black/80 backdrop-blur-md border border-mt-main/40 text-center shadow-2xl">
+                        <p id="track-banner-title" class="font-display font-bold text-sm sm:text-base text-mt-main tracking-wider uppercase">START TYPING TO LAUNCH OFF THE LINE</p>
+                        <p id="track-banner-sub" class="text-xs font-mono text-mt-text/80 mt-0.5">Higher WPM + High Accuracy = Maximum Top Speed & Nitro</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Dashboard Gauges Bar (Speed, WPM, Accuracy, AI Speed, Nitro Bar) -->
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <!-- Player Speed Gauge -->
+                <div class="bg-mt-panel/90 border border-white/10 rounded-xl p-2.5 flex items-center justify-between">
+                    <div>
+                        <span class="text-[10px] font-mono uppercase text-mt-sub block">YOUR SPEED</span>
+                        <div class="flex items-baseline gap-1">
+                            <span id="gauge-speed" class="font-display font-extrabold text-xl sm:text-2xl text-white">0</span>
+                            <span id="gauge-unit" class="text-[11px] font-mono text-mt-main">KM/H</span>
+                        </div>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-mt-main/10 border border-mt-main/25 flex items-center justify-center text-mt-main">
+                        <i class="ph-fill ph-gauge text-xl"></i>
+                    </div>
+                </div>
+
+                <!-- Live WPM Gauge -->
+                <div class="bg-mt-panel/90 border border-white/10 rounded-xl p-2.5 flex items-center justify-between">
+                    <div>
+                        <span class="text-[10px] font-mono uppercase text-mt-sub block">NET WPM</span>
+                        <div class="flex items-baseline gap-1">
+                            <span id="gauge-wpm" class="font-display font-extrabold text-xl sm:text-2xl text-mt-main">0</span>
+                            <span class="text-[11px] font-mono text-mt-sub">WPM</span>
+                        </div>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-mt-text">
+                        <i class="ph-fill ph-keyboard text-xl"></i>
+                    </div>
+                </div>
+
+                <!-- Live Accuracy Multiplier Gauge -->
+                <div class="bg-mt-panel/90 border border-white/10 rounded-xl p-2.5 flex items-center justify-between">
+                    <div>
+                        <span class="text-[10px] font-mono uppercase text-mt-sub block">ACCURACY</span>
+                        <div class="flex items-baseline gap-1">
+                            <span id="gauge-acc" class="font-display font-extrabold text-xl sm:text-2xl text-emerald-400">100</span>
+                            <span class="text-[11px] font-mono text-emerald-400">%</span>
+                        </div>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400">
+                        <i class="ph-fill ph-target text-xl"></i>
+                    </div>
+                </div>
+
+                <!-- Nitro / Grip Multiplier Gauge -->
+                <div class="bg-mt-panel/90 border border-white/10 rounded-xl p-2.5 flex items-center justify-between">
+                    <div class="w-full pr-2">
+                        <div class="flex justify-between text-[10px] font-mono uppercase text-mt-sub">
+                            <span>NITRO BOOST</span>
+                            <span id="gauge-boost-text" class="text-cyan-400">1.00x</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-black/50 rounded-full overflow-hidden mt-1.5 border border-white/10">
+                            <div id="gauge-nitro-bar" class="h-full bg-gradient-to-r from-cyan-500 to-blue-400 transition-all duration-150" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                    <div class="w-9 h-9 shrink-0 rounded-lg bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center text-cyan-400">
+                        <i class="ph-fill ph-lightning text-xl"></i>
+                    </div>
+                </div>
+
+                <!-- AI Rival Telemetry -->
+                <div class="col-span-2 sm:col-span-1 bg-mt-panel/90 border border-rose-500/20 rounded-xl p-2.5 flex items-center justify-between">
+                    <div>
+                        <span class="text-[10px] font-mono uppercase text-rose-400/80 block">AI RIVAL (<span id="ai-target-wpm-label">58</span> WPM)</span>
+                        <div class="flex items-baseline gap-1">
+                            <span id="gauge-ai-speed" class="font-display font-extrabold text-xl sm:text-2xl text-rose-400">0</span>
+                            <span class="text-[11px] font-mono text-rose-400/80 unit-label">KM/H</span>
+                        </div>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400">
+                        <i class="ph-fill ph-robot text-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- BOTTOM HALF: MONKEYTYPE-STYLE TYPING ARENA                     -->
+        <!-- ============================================================== -->
+        <section class="w-full bg-mt-panel/60 border border-white/10 rounded-2xl p-4 sm:p-6 shadow-xl relative flex flex-col justify-between">
+            <!-- Top status bar inside typing arena -->
+            <div class="flex items-center justify-between text-xs font-mono text-mt-sub mb-3">
+                <div class="flex items-center gap-3">
+                    <span id="focus-indicator" class="flex items-center gap-1.5 text-emerald-400">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        ENGINE ARMED — TYPE ANY KEY
+                    </span>
+                    <span id="caps-warning" class="hidden px-2 py-0.5 rounded bg-mt-main text-black font-bold flex items-center gap-1">
+                        <i class="ph-fill ph-warning"></i> CAPS LOCK ON
+                    </span>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <span>WORDS: <strong id="words-progress" class="text-white">0 / 45</strong></span>
+                    <span>TIME: <strong id="race-timer" class="text-mt-main">0.0s</strong></span>
+                </div>
+            </div>
+
+            <!-- Synchronized Hidden Input for Mobile & Desktop Focus Capture -->
+            <input id="typing-input" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" class="fixed opacity-0 pointer-events-none -top-96 left-0 w-1 h-1" aria-label="Typing input">
+
+            <!-- Monkeytype Words Viewport -->
+            <div id="typing-click-area" class="relative cursor-text py-1 select-none">
+                <div id="words-wrapper">
+                    <div id="words-container">
+                        <div id="caret" class="blink"></div>
+                        <div id="words-flow"></div>
+                    </div>
+                </div>
+
+                <!-- Blur Overlay shown ONLY if window/iframe loses focus -->
+                <div id="unfocused-overlay" class="hidden absolute inset-0 backdrop-blur-sm bg-mt-bg/80 rounded-xl flex items-center justify-center z-30 cursor-pointer">
+                    <div class="flex items-center gap-2.5 px-5 py-2.5 rounded-xl bg-mt-panel border border-mt-main/50 text-mt-text font-mono text-sm shadow-2xl">
+                        <i class="ph-fill ph-cursor-click text-mt-main text-lg"></i>
+                        <span>Click anywhere or press any key to focus &amp; start racing</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Controls & Quick Restart Footer -->
+            <div class="mt-4 pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-mt-sub">
+                <div class="flex items-center gap-2">
+                    <button id="restart-btn" class="px-3.5 py-1.5 rounded-lg bg-white/5 hover:bg-mt-main hover:text-black text-mt-text border border-white/10 transition flex items-center gap-1.5 font-semibold">
+                        <i class="ph-bold ph-arrow-counter-clockwise"></i>
+                        <span>Restart Race</span>
+                    </button>
+                    <button id="new-track-btn" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-mt-sub hover:text-white border border-white/10 transition flex items-center gap-1.5">
+                        <i class="ph-bold ph-shuffle"></i>
+                        <span>New Passage</span>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-3 text-[11px]">
+                    <span class="hidden sm:inline"><kbd class="px-1.5 py-0.5 rounded bg-black/50 border border-white/15 text-mt-text">Tab</kbd> + <kbd class="px-1.5 py-0.5 rounded bg-black/50 border border-white/15 text-mt-text">Enter</kbd> or <kbd class="px-1.5 py-0.5 rounded bg-black/50 border border-white/15 text-mt-text">Esc</kbd> to Quick Restart</span>
+                    <span class="text-mt-main/90"><i class="ph-fill ph-info mr-1"></i>Every 10 accurate keys = +Nitro Boost!</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ============================================================== -->
+    <!-- POST-RACE TELEMETRY & RESULTS MODAL                            -->
+    <!-- ============================================================== -->
+    <div id="results-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-md p-4">
+        <div class="w-full max-w-2xl bg-mt-panel border border-white/15 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn">
+            <!-- Modal Header Banner -->
+            <div id="modal-header-bg" class="px-6 py-5 bg-gradient-to-r from-mt-main/20 via-mt-panel to-mt-panel border-b border-white/10 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div id="result-trophy-box" class="w-12 h-12 rounded-xl bg-mt-main/20 border border-mt-main/40 flex items-center justify-center text-mt-main text-2xl">
+                        <i id="result-icon" class="ph-fill ph-trophy"></i>
+                    </div>
+                    <div>
+                        <span id="result-subtitle" class="text-xs font-mono uppercase tracking-widest text-mt-main block">CHECKERED FLAG</span>
+                        <h2 id="result-title" class="font-display font-black text-2xl sm:text-3xl text-white">1ST PLACE VICTORY!</h2>
+                    </div>
+                </div>
+                <div class="text-right font-mono">
+                    <span class="text-xs text-mt-sub block">FINISH MARGIN</span>
+                    <span id="result-margin" class="text-sm font-bold text-emerald-400">+1.42s AHEAD</span>
+                </div>
+            </div>
+
+            <!-- Telemetry Metrics Grid -->
+            <div class="p-6 space-y-5">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div class="bg-black/40 border border-white/10 rounded-xl p-3">
+                        <span class="text-[11px] font-mono text-mt-sub uppercase">NET WPM</span>
+                        <div id="res-wpm" class="font-display font-black text-3xl text-mt-main mt-0.5">74</div>
+                        <span id="res-raw" class="text-[11px] font-mono text-mt-sub">Raw: 78 WPM</span>
+                    </div>
+
+                    <div class="bg-black/40 border border-white/10 rounded-xl p-3">
+                        <span class="text-[11px] font-mono text-mt-sub uppercase">ACCURACY</span>
+                        <div id="res-acc" class="font-display font-black text-3xl text-emerald-400 mt-0.5">98%</div>
+                        <span id="res-chars" class="text-[11px] font-mono text-mt-sub">210 / 3 err</span>
+                    </div>
+
+                    <div class="bg-black/40 border border-white/10 rounded-xl p-3">
+                        <span class="text-[11px] font-mono text-mt-sub uppercase">TOP SPEED</span>
+                        <div id="res-peak-speed" class="font-display font-black text-3xl text-cyan-400 mt-0.5">248</div>
+                        <span id="res-avg-speed" class="text-[11px] font-mono text-mt-sub">Avg: 194 KM/H</span>
+                    </div>
+
+                    <div class="bg-black/40 border border-white/10 rounded-xl p-3">
+                        <span class="text-[11px] font-mono text-mt-sub uppercase">RACE TIME</span>
+                        <div id="res-time" class="font-display font-black text-3xl text-white mt-0.5">24.5s</div>
+                        <span id="res-streak" class="text-[11px] font-mono text-mt-sub">Best Streak: 45x</span>
+                    </div>
+                </div>
+
+                <!-- Performance Telemetry Graph (WPM & Speed Over Time) -->
+                <div class="bg-black/40 border border-white/10 rounded-xl p-3">
+                    <div class="flex items-center justify-between text-xs font-mono text-mt-sub mb-2">
+                        <span>TELEMETRY LOG (PLAYER SPEED VS AI SPEED)</span>
+                        <div class="flex items-center gap-3">
+                            <span class="flex items-center gap-1 text-mt-main"><span class="w-2.5 h-2.5 rounded-full bg-mt-main inline-block"></span> You</span>
+                            <span class="flex items-center gap-1 text-rose-400"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> AI Rival</span>
+                        </div>
+                    </div>
+                    <div class="w-full h-32">
+                        <canvas id="telemetry-chart" class="w-full h-full"></canvas>
+                    </div>
+                </div>
+
+                <!-- Modal Action Buttons -->
+                <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <p class="text-xs font-mono text-mt-sub">Press <kbd class="px-1.5 py-0.5 rounded bg-black/60 border border-white/15 text-white">Enter</kbd> or <kbd class="px-1.5 py-0.5 rounded bg-black/60 border border-white/15 text-white">Esc</kbd> to race again</p>
+                    <div class="flex items-center gap-2.5">
+                        <button id="modal-next-btn" class="px-5 py-2.5 rounded-xl bg-mt-main hover:bg-amber-400 text-black font-display font-bold text-sm transition shadow-lg shadow-mt-main/25 flex items-center gap-2">
+                            <i class="ph-bold ph-flag-checkered"></i>
+                            <span>RACE AGAIN</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- APPLICATION LOGIC: AUDIO SYNTH, TYPING ENGINE & RACE PHYSICS   -->
+    <!-- ============================================================== -->
+    <script>
+        /**************************************************************
+         * 1. PASSAGE CORPORA (Motorsport, Common Words, CyberTech)
+         **************************************************************/
+        const CORPORA = {
+            motorsport: [
+                "late braking into the hairpin corner demands total precision as the twin turbo engine roars down the main straightaway toward the checkered flag",
+                "aerodynamic downforce keeps the carbon chassis planted through high speed sweeping turns while the driver modulates throttle and apex trajectory",
+                "every millisecond counts on qualifying day when warm slick tires grip the hot asphalt and launch the machine out of the chicane at full boost",
+                "shifting up through the sequential gearbox at redline sends a surge of horsepower to the rear wheels as rival headlights flash in the mirror",
+                "drafting behind the leader in the slipstream reduces drag until the final hundred meters where nitro injection unleashes maximum velocity"
+            ],
+            common: [
+                "the quick driver shifts into sixth gear as the city lights blur past the carbon fiber wing and the engine hits peak revolution down the highway",
+                "focus on smooth rhythm and steady accuracy because clean keystrokes build momentum faster than reckless speed filled with costly mistakes",
+                "under the neon glow of the midnight circuit two machines battle side by side with every single letter pushing the speedometer higher and higher",
+                "steady hands and sharp eyes win the championship when the pressure rises in the final sector and the finish line appears ahead in the distance",
+                "feel the mechanical switches click in harmony with the roaring exhaust note while your streak multiplier charges the blue nitro boost tank"
+            ],
+            code: [
+                "const velocity = Math.min(maxSpeed, baseWpm * accuracyMultiplier * nitroBoost); requestAnimationFrame(updatePhysicsLoop);",
+                "async function compileShaderProgram(gl, vertexSource, fragmentSource) { return await pipeline.optimize({ async: true, target: 60 }); }",
+                "export default class TelemetryEngine { constructor(config) { this.sampleRate = 120; this.buffer = new Float32Array(1024); } }",
+                "SELECT driver_id, MAX(top_speed), AVG(lap_accuracy) FROM race_telemetry WHERE status = 'FINISHED' GROUP BY circuit_name;"
+            ]
+        };
+
+        /**************************************************************
+         * 2. WEB AUDIO API SYNTHESIZER (V8 Car + Superbike + Key Switches)
+         **************************************************************/
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+                this.engineRunning = false;
+                this.osc1 = null;
+                this.osc2 = null;
+                this.subOsc = null;
+                this.engineGain = null;
+                this.filter = null;
+                this.lastGear = 1;
+            }
+
+            init() {
+                if (!this.enabled) return;
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioCtx) return;
+                    this.ctx = new AudioCtx();
+                    this.setupEngineSynth();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            setupEngineSynth() {
+                if (!this.ctx || this.engineRunning) return;
+
+                // Multi-oscillator architecture for realistic Car V8 rumble & Superbike inline-4 scream
+                this.osc1 = this.ctx.createOscillator();
+                this.osc2 = this.ctx.createOscillator();
+                this.subOsc = this.ctx.createOscillator();
+                this.filter = this.ctx.createBiquadFilter();
+                this.engineGain = this.ctx.createGain();
+
+                this.osc1.type = 'sawtooth';
+                this.osc2.type = 'sawtooth';
+                this.subOsc.type = 'triangle';
+
+                this.osc1.frequency.value = 46;
+                this.osc2.frequency.value = 46.8; // Slight detune for rich chorus/cylinders
+                this.subOsc.frequency.value = 23;
+
+                this.filter.type = 'lowpass';
+                this.filter.frequency.value = 190;
+                this.filter.Q.value = 4.2;
+
+                this.engineGain.gain.value = 0.0;
+
+                this.osc1.connect(this.filter);
+                this.osc2.connect(this.filter);
+                this.subOsc.connect(this.filter);
+                this.filter.connect(this.engineGain);
+                this.engineGain.connect(this.ctx.destination);
+
+                this.osc1.start();
+                this.osc2.start();
+                this.subOsc.start();
+                this.engineRunning = true;
+            }
+
+            updateEngineRPM(speedKmh, gear, isActiveRace, vehicleType) {
+                if (!this.ctx || !this.engineRunning) return;
+                if (!this.enabled || !isActiveRace) {
+                    this.engineGain.gain.setTargetAtTime(0.0, this.ctx.currentTime, 0.08);
+                    return;
+                }
+
+                // Trigger exhaust crackle/pop on gear upshift
+                if (gear > this.lastGear && speedKmh > 40) {
+                    this.playExhaustCrackle();
+                }
+                this.lastGear = gear;
+
+                const gearRatios = [0, 62, 112, 162, 212, 268, 340];
+                const prevLim = gearRatios[gear - 1] || 0;
+                const nextLim = gearRatios[gear] || 340;
+                const gearProgress = Math.max(0.14, Math.min(1.0, (speedKmh - prevLim) / (nextLim - prevLim)));
+
+                const now = this.ctx.currentTime;
+
+                if (vehicleType === 'bike') {
+                    // Standard Racing Superbike: High-revving inline-4 scream (110Hz - 340Hz fundamental)
+                    const baseFreq = 92 + gearProgress * 175 + (speedKmh * 0.25);
+                    this.osc1.type = 'sawtooth';
+                    this.osc2.type = 'square';
+                    this.osc1.frequency.setTargetAtTime(baseFreq, now, 0.04);
+                    this.osc2.frequency.setTargetAtTime(baseFreq * 1.5, now, 0.04); // Fifth harmonic scream
+                    this.subOsc.frequency.setTargetAtTime(baseFreq * 0.5, now, 0.04);
+                    this.filter.frequency.setTargetAtTime(320 + speedKmh * 4.5, now, 0.05);
+                } else {
+                    // Standard GT Car: Deep muscular V8 rumble (42Hz - 155Hz fundamental)
+                    const baseFreq = 42 + gearProgress * 82 + (speedKmh * 0.14);
+                    this.osc1.type = 'sawtooth';
+                    this.osc2.type = 'sawtooth';
+                    this.osc1.frequency.setTargetAtTime(baseFreq, now, 0.04);
+                    this.osc2.frequency.setTargetAtTime(baseFreq * 1.018, now, 0.04); // V8 cross-plane phasing
+                    this.subOsc.frequency.setTargetAtTime(baseFreq * 0.5, now, 0.04);
+                    this.filter.frequency.setTargetAtTime(150 + speedKmh * 2.6, now, 0.05);
+                }
+
+                const targetVol = Math.min(0.08, 0.018 + (speedKmh / 300) * 0.06);
+                this.engineGain.gain.setTargetAtTime(targetVol, now, 0.06);
+            }
+
+            // Throttle blip on accurate keystroke for tactile responsiveness
+            playThrottleBlip(vehicleType) {
+                if (!this.enabled || !this.ctx || !this.engineRunning) return;
+                const now = this.ctx.currentTime;
+                const boostCutoff = vehicleType === 'bike' ? 950 : 520;
+                this.filter.frequency.setValueAtTime(boostCutoff, now);
+                this.filter.frequency.exponentialRampToValueAtTime(220, now + 0.07);
+            }
+
+            // Exhaust pop/crackle on gear shifts
+            playExhaustCrackle() {
+                if (!this.enabled || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const bufferSize = this.ctx.sampleRate * 0.06;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const bandpass = this.ctx.createBiquadFilter();
+                bandpass.type = 'bandpass';
+                bandpass.frequency.value = 260;
+                bandpass.Q.value = 2.0;
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.11, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+
+                noise.connect(bandpass);
+                bandpass.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start(now);
+            }
+
+            playKeyClick(isCorrect = true, isNitro = false) {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                if (isCorrect) {
+                    // Crisp tactile mechanical switch "thock"
+                    osc.type = isNitro ? 'triangle' : 'sine';
+                    const startFreq = isNitro ? 540 : 360;
+                    osc.frequency.setValueAtTime(startFreq, now);
+                    osc.frequency.exponentialRampToValueAtTime(95, now + 0.032);
+
+                    gain.gain.setValueAtTime(0.11, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+                } else {
+                    // Distinct low tire-skid / misfire thud on typo
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(125, now);
+                    osc.frequency.linearRampToValueAtTime(72, now + 0.085);
+
+                    gain.gain.setValueAtTime(0.13, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+                }
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.095);
+            }
+
+            playNitroEngage() {
+                if (!this.enabled || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(280, now);
+                osc.frequency.exponentialRampToValueAtTime(920, now + 0.22);
+
+                gain.gain.setValueAtTime(0.09, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+
+            playFinishFanfare(won = true) {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const notes = won ? [523.25, 659.25, 783.99, 1046.5] : [392.00, 349.23, 329.63];
+                notes.forEach((freq, idx) => {
+                    const now = this.ctx.currentTime + idx * 0.09;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                });
+            }
+        }
+
+        /**************************************************************
+         * 3. GAME STATE & TELEMETRY CONTROLLER
+         **************************************************************/
+        const sound = new SoundEngine();
+
+        const state = {
+            mode: 'motorsport',
+            aiTargetWpm: 58,
+            useMph: false,
+            strictMode: false,      // false = Flow Mode (Standard Monkeytype), true = Stop on Error
+            vehicleType: 'car',     // Player: 'car' or 'bike'
+            aiVehicleType: 'bike',  // AI Rival: 'bike' or 'car'
+
+            // Flattened Monkeytype Character Stream
+            passageText: '',
+            totalWords: 0,
+            chars: [],              // [{ char, wordIndex, charIndexInWord, spanElement, status: 'pending'|'correct'|'incorrect' }]
+            currentIndex: 0,
+            correctKeystrokes: 0,
+            errorKeystrokes: 0,
+            totalKeystrokes: 0,
+            streak: 0,
+            maxStreak: 0,
+
+            // Input deduplication lock (prevents keydown + mobile input double-triggering)
+            lastHandledKeyTime: 0,
+
+            // Timing
+            status: 'idle',         // 'idle' | 'racing' | 'finished'
+            startTime: 0,
+            elapsedTime: 0,
+            recentKeyTimestamps: [],
+
+            // Physics & Track Progress (0.0 to 1.0 = 100% finish line)
+            playerProgress: 0,
+            aiProgress: 0,
+            playerSpeedKmh: 0,
+            targetPlayerSpeedKmh: 0,
+            peakSpeedKmh: 0,
+            aiSpeedKmh: 0,
+            nitroMultiplier: 1.0,
+            gear: 1,
+
+            // Visual environment scroll
+            cameraScrollX: 0,
+            particles: [],
+            telemetryHistory: [],
+            lastTelemetrySample: 0,
+
+            // Shortcut state
+            tabPressed: false
+        };
+
+        /**************************************************************
+         * 4. DOM ELEMENTS
+         **************************************************************/
+        const wordsContainer = document.getElementById('words-container');
+        const wordsFlow = document.getElementById('words-flow');
+        const caretEl = document.getElementById('caret');
+        const typingInput = document.getElementById('typing-input');
+        const unfocusedOverlay = document.getElementById('unfocused-overlay');
+        const trackBanner = document.getElementById('track-banner');
+        const trackBannerTitle = document.getElementById('track-banner-title');
+        const trackBannerSub = document.getElementById('track-banner-sub');
+
+        // Gauges
+        const gaugeSpeed = document.getElementById('gauge-speed');
+        const gaugeUnit = document.getElementById('gauge-unit');
+        const gaugeWpm = document.getElementById('gauge-wpm');
+        const gaugeAcc = document.getElementById('gauge-acc');
+        const gaugeBoostText = document.getElementById('gauge-boost-text');
+        const gaugeNitroBar = document.getElementById('gauge-nitro-bar');
+        const gaugeAiSpeed = document.getElementById('gauge-ai-speed');
+        const aiTargetWpmLabel = document.getElementById('ai-target-wpm-label');
+
+        // Mini Map & Badges
+        const playerMiniBar = document.getElementById('player-mini-bar');
+        const playerMiniDot = document.getElementById('player-mini-dot');
+        const aiMiniBar = document.getElementById('ai-mini-bar');
+        const aiMiniDot = document.getElementById('ai-mini-dot');
+        const raceGapBadge = document.getElementById('race-gap-badge');
+        const liveRank = document.getElementById('live-rank');
+        const streakCountEl = document.getElementById('streak-count');
+        const nitroStatusPill = document.getElementById('nitro-status-pill');
+        const rpmBar = document.getElementById('rpm-bar');
+        const gearDisplay = document.getElementById('gear-display');
+        const wordsProgressEl = document.getElementById('words-progress');
+        const raceTimerEl = document.getElementById('race-timer');
+
+        // Canvas
+        const raceCanvas = document.getElementById('race-canvas');
+        const ctx = raceCanvas.getContext('2d');
+
+        /**************************************************************
+         * 5. PASSAGE GENERATION & MONKEYTYPE RENDERING
+         **************************************************************/
+        function buildPassage() {
+            const list = CORPORA[state.mode] || CORPORA.motorsport;
+            const idx1 = Math.floor(Math.random() * list.length);
+            let idx2 = Math.floor(Math.random() * list.length);
+            if (idx2 === idx1) idx2 = (idx1 + 1) % list.length;
+
+            // Normalize whitespace to single spaces so cursor never desynchronizes
+            state.passageText = (list[idx1] + ' ' + list[idx2]).replace(/\s+/g, ' ').trim();
+            state.chars = [];
+
+            wordsFlow.innerHTML = '';
+            wordsContainer.style.transform = 'translateY(0px)';
+
+            const words = state.passageText.split(' ');
+            state.totalWords = words.length;
+
+            words.forEach((wordStr, wIdx) => {
+                const wordSpan = document.createElement('span');
+                wordSpan.className = 'word';
+
+                for (let c = 0; c < wordStr.length; c++) {
+                    const charSpan = document.createElement('span');
+                    charSpan.className = 'char';
+                    charSpan.textContent = wordStr[c];
+                    wordSpan.appendChild(charSpan);
+
+                    state.chars.push({
+                        char: wordStr[c],
+                        wordIndex: wIdx,
+                        charIndexInWord: c,
+                        spanElement: charSpan,
+                        status: 'pending'
+                    });
+                }
+
+                // Explicit visible space span after each word (except last word)
+                if (wIdx < words.length - 1) {
+                    const spaceSpan = document.createElement('span');
+                    spaceSpan.className = 'char space-char';
+                    spaceSpan.textContent = ' ';
+                    wordSpan.appendChild(spaceSpan);
+
+                    state.chars.push({
+                        char: ' ',
+                        wordIndex: wIdx,
+                        charIndexInWord: wordStr.length,
+                        spanElement: spaceSpan,
+                        status: 'pending'
+                    });
+                }
+
+                wordsFlow.appendChild(wordSpan);
+            });
+
+            wordsProgressEl.textContent = `0 / ${state.totalWords}`;
+            requestAnimationFrame(updateCaretPosition);
+        }
+
+        function updateCaretPosition() {
+            if (!state.chars.length) return;
+
+            const isAtEnd = state.currentIndex >= state.chars.length;
+            const targetIdx = isAtEnd ? state.chars.length - 1 : state.currentIndex;
+            const targetObj = state.chars[targetIdx];
+            if (!targetObj || !targetObj.spanElement) return;
+
+            const charEl = targetObj.spanElement;
+            const wordEl = charEl.parentElement;
+
+            let left = wordEl.offsetLeft + charEl.offsetLeft;
+            const top = wordEl.offsetTop;
+
+            if (isAtEnd) {
+                left += charEl.offsetWidth;
+            }
+
+            caretEl.style.transform = `translate3d(${left}px, ${top + 7}px, 0)`;
+
+            // Smooth Monkeytype vertical line scrolling: keep active line on middle row
+            const lineHeight = window.innerWidth <= 640 ? 40 : 48;
+            const currentLine = Math.round(top / lineHeight);
+            const scrollLines = Math.max(0, currentLine - 1);
+            wordsContainer.style.transform = `translateY(-${scrollLines * lineHeight}px)`;
+        }
+
+        function getCorrectCharCount() {
+            let count = 0;
+            for (let i = 0; i < state.chars.length; i++) {
+                if (state.chars[i].status === 'correct') count++;
+            }
+            return count;
+        }
+
+        /**************************************************************
+         * 6. RESET & START RACE WORKFLOW
+         **************************************************************/
+        function resetRace(keepSamePassage = false) {
+            state.status = 'idle';
+            state.currentIndex = 0;
+            state.correctKeystrokes = 0;
+            state.errorKeystrokes = 0;
+            state.totalKeystrokes = 0;
+            state.streak = 0;
+            state.maxStreak = 0;
+            state.startTime = 0;
+            state.elapsedTime = 0;
+            state.recentKeyTimestamps = [];
+
+            state.playerProgress = 0;
+            state.aiProgress = 0;
+            state.playerSpeedKmh = 0;
+            state.targetPlayerSpeedKmh = 0;
+            state.peakSpeedKmh = 0;
+            state.aiSpeedKmh = 0;
+            state.nitroMultiplier = 1.0;
+            state.gear = 1;
+            state.particles = [];
+            state.telemetryHistory = [];
+            state.lastTelemetrySample = 0;
+
+            caretEl.classList.add('blink');
+            caretEl.classList.remove('nitro-caret');
+
+            trackBanner.classList.remove('opacity-0');
+            trackBannerTitle.textContent = 'START TYPING TO LAUNCH OFF THE LINE';
+            trackBannerSub.textContent = 'Higher WPM + High Accuracy = Maximum Top Speed & Nitro';
+
+            document.getElementById('results-modal').classList.add('hidden');
+            document.getElementById('results-modal').classList.remove('flex');
+
+            if (!keepSamePassage || !state.chars.length) {
+                buildPassage();
+            } else {
+                state.chars.forEach(c => {
+                    c.status = 'pending';
+                    c.spanElement.className = c.char === ' ' ? 'char space-char' : 'char';
+                });
+                wordsProgressEl.textContent = `0 / ${state.totalWords}`;
+                wordsContainer.style.transform = 'translateY(0px)';
+                requestAnimationFrame(updateCaretPosition);
+            }
+
+            sound.updateEngineRPM(0, 1, false, state.vehicleType);
+            updateDashboardUI();
+            focusTypingEngine();
+        }
+
+        function focusTypingEngine() {
+            unfocusedOverlay.classList.add('hidden');
+            if (document.activeElement && document.activeElement !== typingInput && document.activeElement !== document.body) {
+                document.activeElement.blur();
+            }
+            typingInput.value = '';
+            typingInput.focus({ preventScroll: true });
+        }
+
+        /**************************************************************
+         * 7. UNIFIED, DEDUPLICATED KEYBOARD INPUT ENGINE
+         **************************************************************/
+        function processTypingKey(key) {
+            if (state.status === 'finished') return;
+
+            const now = performance.now();
+            state.lastHandledKeyTime = now;
+
+            // Handle Backspace
+            if (key === 'Backspace') {
+                if (state.status === 'racing' && state.currentIndex > 0) {
+                    state.currentIndex--;
+                    const charObj = state.chars[state.currentIndex];
+                    charObj.status = 'pending';
+                    charObj.spanElement.className = charObj.char === ' ' ? 'char space-char' : 'char';
+                    sound.playKeyClick(true, false);
+                    requestAnimationFrame(updateCaretPosition);
+                }
+                return;
+            }
+
+            // Only process single printable characters
+            if (key.length !== 1) return;
+
+            // Launch race on first printable character
+            if (state.status === 'idle') {
+                state.status = 'racing';
+                state.startTime = now;
+                state.lastTelemetrySample = now;
+                caretEl.classList.remove('blink');
+                trackBanner.classList.add('opacity-0');
+                sound.init();
+            }
+
+            if (state.status !== 'racing') return;
+
+            const currentObj = state.chars[state.currentIndex];
+            if (!currentObj) return;
+
+            state.totalKeystrokes++;
+            const baseClass = currentObj.char === ' ' ? 'char space-char' : 'char';
+
+            if (key === currentObj.char) {
+                // Correct keystroke!
+                currentObj.status = 'correct';
+                state.correctKeystrokes++;
+                state.streak++;
+                if (state.streak > state.maxStreak) state.maxStreak = state.streak;
+
+                const isNitroActive = state.streak >= 15;
+                currentObj.spanElement.className = isNitroActive
+                    ? `${baseClass} correct nitro-char`
+                    : `${baseClass} correct`;
+
+                state.recentKeyTimestamps.push(now);
+
+                // Nitro boost scales up with consecutive accurate keys (up to 1.35x)
+                state.nitroMultiplier = Math.min(1.35, 1.0 + Math.floor(state.streak / 8) * 0.05);
+
+                if (state.streak > 0 && state.streak % 18 === 0) {
+                    sound.playNitroEngage();
+                    spawnNitroBurst();
+                } else {
+                    sound.playKeyClick(true, isNitroActive);
+                    sound.playThrottleBlip(state.vehicleType);
+                }
+
+                if (isNitroActive) {
+                    caretEl.classList.add('nitro-caret');
+                }
+
+                state.currentIndex++;
+            } else {
+                // Mistake!
+                state.errorKeystrokes++;
+                state.streak = 0;
+                state.nitroMultiplier = 1.0;
+                caretEl.classList.remove('nitro-caret');
+
+                // Slight speed penalty on mistake (wheelspin/brake)
+                state.playerSpeedKmh *= 0.86;
+                sound.playKeyClick(false, false);
+
+                currentObj.status = 'incorrect';
+                currentObj.spanElement.className = `${baseClass} incorrect`;
+
+                // In Flow Mode (Standard Monkeytype), advance cursor so user never gets stuck.
+                // In Strict Mode, keep cursor on current character until typed accurately.
+                if (!state.strictMode) {
+                    state.currentIndex++;
+                }
+            }
+
+            requestAnimationFrame(updateCaretPosition);
+
+            // Update word count indicator
+            const currentWord = state.currentIndex < state.chars.length
+                ? state.chars[state.currentIndex].wordIndex + 1
+                : state.totalWords;
+            wordsProgressEl.textContent = `${currentWord} / ${state.totalWords}`;
+
+            // Check if player finished typing the entire passage
+            if (state.currentIndex >= state.chars.length) {
+                state.playerProgress = 1.0;
+                finishRace('player');
+            }
+        }
+
+        /**************************************************************
+         * 8. REAL-TIME PHYSICS, WPM -> CAR SPEED & AI RIVAL LOOP
+         **************************************************************/
+        function updateRacePhysics(dt, now) {
+            if (state.status !== 'racing') {
+                state.playerSpeedKmh *= 0.92;
+                state.aiSpeedKmh *= 0.92;
+                return;
+            }
+
+            state.elapsedTime = (now - state.startTime) / 1000;
+
+            // Prune key timestamps older than 3.5 seconds for responsive burst WPM
+            const windowMs = 3500;
+            while (state.recentKeyTimestamps.length > 0 && (now - state.recentKeyTimestamps[0]) > windowMs) {
+                state.recentKeyTimestamps.shift();
+            }
+
+            // 1. Calculate Overall Net WPM based on correct characters
+            const correctCharCount = getCorrectCharCount();
+            const minutesElapsed = Math.max(0.03, state.elapsedTime / 60);
+            const overallNetWpm = Math.max(0, (correctCharCount / 5) / minutesElapsed);
+
+            // 2. Calculate Instantaneous Burst WPM (over last 3.5s)
+            const recentChars = state.recentKeyTimestamps.length;
+            const burstWpm = (recentChars / 5) / (windowMs / 60000);
+
+            // Blend 55% burst WPM + 45% overall Net WPM
+            const blendedWpm = (burstWpm * 0.55) + (overallNetWpm * 0.45);
+
+            // 3. Calculate Accuracy Factor: Math.pow(accuracy, 1.8)
+            const accuracy = state.totalKeystrokes > 0 ? (state.correctKeystrokes / state.totalKeystrokes) : 1.0;
+            const accuracyPower = Math.pow(accuracy, 1.8);
+
+            // 4. Target Player Speed in KM/H
+            state.targetPlayerSpeedKmh = blendedWpm * 2.8 * accuracyPower * state.nitroMultiplier;
+
+            // Smooth acceleration & coasting inertia
+            const accelRate = state.targetPlayerSpeedKmh > state.playerSpeedKmh ? 5.8 : 2.8;
+            state.playerSpeedKmh += (state.targetPlayerSpeedKmh - state.playerSpeedKmh) * Math.min(1, dt * accelRate);
+
+            if (state.playerSpeedKmh > state.peakSpeedKmh) {
+                state.peakSpeedKmh = state.playerSpeedKmh;
+            }
+
+            // Determine current Gear (1 to 6)
+            if (state.playerSpeedKmh < 10) state.gear = 1;
+            else if (state.playerSpeedKmh < 62) state.gear = 1;
+            else if (state.playerSpeedKmh < 112) state.gear = 2;
+            else if (state.playerSpeedKmh < 162) state.gear = 3;
+            else if (state.playerSpeedKmh < 212) state.gear = 4;
+            else if (state.playerSpeedKmh < 268) state.gear = 5;
+            else state.gear = 6;
+
+            // 5. AI Rival Physics
+            const aiWave = 1.0 + Math.sin(now * 0.0022) * 0.06;
+            const targetAiKmh = state.aiTargetWpm * 2.8 * aiWave;
+            state.aiSpeedKmh += (targetAiKmh - state.aiSpeedKmh) * Math.min(1, dt * 3.0);
+
+            // 6. Advance Both Vehicles along the Track
+            const totalChars = Math.max(1, state.chars.length);
+            const expectedSecondsForAI = (totalChars / 5) / (state.aiTargetWpm / 60);
+            const baseTrackMeters = state.aiTargetWpm * 2.8 * expectedSecondsForAI;
+
+            const playerDeltaProgress = (state.playerSpeedKmh * dt) / Math.max(120, baseTrackMeters);
+            const typingCompletionProgress = state.currentIndex / totalChars;
+
+            state.playerProgress = Math.min(
+                0.995,
+                Math.max(state.playerProgress, (state.playerProgress + playerDeltaProgress) * 0.6 + typingCompletionProgress * 0.4)
+            );
+
+            const aiDeltaProgress = (state.aiSpeedKmh * dt) / Math.max(120, baseTrackMeters);
+            state.aiProgress = Math.min(1.0, state.aiProgress + aiDeltaProgress);
+
+            // Scroll camera with leading velocity
+            state.cameraScrollX += Math.max(65, state.playerSpeedKmh * 4.2) * dt;
+
+            // Update Engine Audio Synthesizer
+            sound.updateEngineRPM(state.playerSpeedKmh, state.gear, true, state.vehicleType);
+
+            // Spawn exhaust / nitro particles
+            if (state.playerSpeedKmh > 25 && Math.random() < 0.65) {
+                spawnExhaustParticle(true, state.streak >= 15);
+            }
+            if (state.aiSpeedKmh > 25 && Math.random() < 0.45) {
+                spawnExhaustParticle(false, false);
+            }
+
+            // Sample telemetry every 0.5s for the post-race graph
+            if (now - state.lastTelemetrySample >= 500) {
+                state.lastTelemetrySample = now;
+                state.telemetryHistory.push({
+                    t: state.elapsedTime,
+                    pSpeed: state.playerSpeedKmh,
+                    aiSpeed: state.aiSpeedKmh,
+                    wpm: Math.round(overallNetWpm)
+                });
+            }
+
+            if (state.aiProgress >= 1.0) {
+                finishRace('ai');
+            }
+        }
+
+        /**************************************************************
+         * 9. FINISH RACE & TELEMETRY CHART MODAL
+         **************************************************************/
+        function finishRace(winner) {
+            if (state.status === 'finished') return;
+            state.status = 'finished';
+            sound.updateEngineRPM(0, 1, false, state.vehicleType);
+            sound.playFinishFanfare(winner === 'player');
+
+            const correctCharCount = getCorrectCharCount();
+            const minutes = Math.max(0.02, state.elapsedTime / 60);
+            const netWpm = Math.round((correctCharCount / 5) / minutes);
+            const rawWpm = Math.round((state.totalKeystrokes / 5) / minutes);
+            const acc = state.totalKeystrokes > 0 ? Math.round((state.correctKeystrokes / state.totalKeystrokes) * 100) : 100;
+
+            const unitMult = state.useMph ? 0.621371 : 1;
+            const unitStr = state.useMph ? 'MPH' : 'KM/H';
+            const peakSpeed = Math.round(state.peakSpeedKmh * unitMult);
+
+            const avgSpeedKmh = state.telemetryHistory.length > 0
+                ? state.telemetryHistory.reduce((sum, s) => sum + s.pSpeed, 0) / state.telemetryHistory.length
+                : state.playerSpeedKmh;
+            const avgSpeed = Math.round(avgSpeedKmh * unitMult);
+
+            const modal = document.getElementById('results-modal');
+            const titleEl = document.getElementById('result-title');
+            const subEl = document.getElementById('result-subtitle');
+            const marginEl = document.getElementById('result-margin');
+            const iconEl = document.getElementById('result-icon');
+            const trophyBox = document.getElementById('result-trophy-box');
+
+            if (winner === 'player') {
+                titleEl.textContent = '1ST PLACE VICTORY!';
+                titleEl.className = 'font-display font-black text-2xl sm:text-3xl text-white';
+                subEl.textContent = 'CHECKERED FLAG — YOU BEAT THE AI RIVAL';
+                const leadPct = Math.max(0.4, ((1 - state.aiProgress) * 100)).toFixed(1);
+                marginEl.textContent = `+${leadPct}% TRACK LEAD`;
+                marginEl.className = 'text-sm font-bold text-emerald-400';
+                iconEl.className = 'ph-fill ph-trophy';
+                trophyBox.className = 'w-12 h-12 rounded-xl bg-mt-main/20 border border-mt-main/40 flex items-center justify-center text-mt-main text-2xl';
+            } else {
+                titleEl.textContent = '2ND PLACE — PHOTO FINISH';
+                titleEl.className = 'font-display font-black text-2xl sm:text-3xl text-rose-400';
+                subEl.textContent = 'AI RIVAL CROSSED THE LINE FIRST';
+                const behindPct = Math.max(0.4, ((1 - state.playerProgress) * 100)).toFixed(1);
+                marginEl.textContent = `-${behindPct}% BEHIND AI`;
+                marginEl.className = 'text-sm font-bold text-rose-400';
+                iconEl.className = 'ph-fill ph-flag-checkered';
+                trophyBox.className = 'w-12 h-12 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 text-2xl';
+            }
+
+            document.getElementById('res-wpm').textContent = netWpm;
+            document.getElementById('res-raw').textContent = `Raw: ${rawWpm} WPM`;
+            document.getElementById('res-acc').textContent = `${acc}%`;
+            document.getElementById('res-chars').textContent = `${state.correctKeystrokes} ok / ${state.errorKeystrokes} err`;
+            document.getElementById('res-peak-speed').textContent = peakSpeed;
+            document.getElementById('res-avg-speed').textContent = `Avg: ${avgSpeed} ${unitStr}`;
+            document.getElementById('res-time').textContent = `${state.elapsedTime.toFixed(1)}s`;
+            document.getElementById('res-streak').textContent = `Best Streak: ${state.maxStreak}x`;
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            requestAnimationFrame(drawTelemetryChart);
+        }
+
+        function drawTelemetryChart() {
+            const chartCanvas = document.getElementById('telemetry-chart');
+            if (!chartCanvas) return;
+            const cCtx = chartCanvas.getContext('2d');
+            const rect = chartCanvas.getBoundingClientRect();
+            chartCanvas.width = rect.width * window.devicePixelRatio;
+            chartCanvas.height = rect.height * window.devicePixelRatio;
+            cCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+            const w = rect.width;
+            const h = rect.height;
+            cCtx.clearRect(0, 0, w, h);
+
+            const samples = state.telemetryHistory;
+            if (samples.length < 2) {
+                cCtx.fillStyle = '#646669';
+                cCtx.font = '12px JetBrains Mono';
+                cCtx.fillText('Sprint completed too quickly for multi-point graph', 16, h / 2);
+                return;
+            }
+
+            const maxSpeed = Math.max(220, ...samples.map(s => Math.max(s.pSpeed, s.aiSpeed))) * 1.1;
+
+            cCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+            cCtx.lineWidth = 1;
+            for (let i = 1; i <= 3; i++) {
+                const y = (h / 4) * i;
+                cCtx.beginPath();
+                cCtx.moveTo(0, y);
+                cCtx.lineTo(w, y);
+                cCtx.stroke();
+            }
+
+            const plotLine = (key, color, fillRgba) => {
+                cCtx.beginPath();
+                samples.forEach((pt, i) => {
+                    const x = (i / (samples.length - 1)) * (w - 16) + 8;
+                    const y = h - 10 - (pt[key] / maxSpeed) * (h - 22);
+                    if (i === 0) cCtx.moveTo(x, y);
+                    else cCtx.lineTo(x, y);
+                });
+                cCtx.strokeStyle = color;
+                cCtx.lineWidth = 2.5;
+                cCtx.stroke();
+
+                if (fillRgba) {
+                    cCtx.lineTo(w - 8, h - 10);
+                    cCtx.lineTo(8, h - 10);
+                    cCtx.closePath();
+                    cCtx.fillStyle = fillRgba;
+                    cCtx.fill();
+                }
+            };
+
+            plotLine('aiSpeed', '#f43f5e', null);
+            plotLine('pSpeed', '#e2b714', 'rgba(226, 183, 20, 0.14)');
+        }
+
+        /**************************************************************
+         * 10. UI TELEMETRY UPDATES
+         **************************************************************/
+        function updateDashboardUI() {
+            const unitMult = state.useMph ? 0.621371 : 1;
+            const unitStr = state.useMph ? 'MPH' : 'KM/H';
+
+            const dispPlayerSpeed = Math.round(state.playerSpeedKmh * unitMult);
+            const dispAiSpeed = Math.round(state.aiSpeedKmh * unitMult);
+
+            gaugeSpeed.textContent = dispPlayerSpeed;
+            gaugeUnit.textContent = unitStr;
+            gaugeAiSpeed.textContent = dispAiSpeed;
+
+            const correctCharCount = getCorrectCharCount();
+            const minutes = state.status === 'racing' ? Math.max(0.02, state.elapsedTime / 60) : 0;
+            const wpm = minutes > 0 ? Math.round((correctCharCount / 5) / minutes) : 0;
+            const acc = state.totalKeystrokes > 0 ? Math.round((state.correctKeystrokes / state.totalKeystrokes) * 100) : 100;
+
+            gaugeWpm.textContent = wpm;
+            gaugeAcc.textContent = acc;
+
+            gaugeBoostText.textContent = `${state.nitroMultiplier.toFixed(2)}x`;
+            const nitroPct = Math.min(100, ((state.nitroMultiplier - 1.0) / 0.35) * 100);
+            gaugeNitroBar.style.width = `${nitroPct}%`;
+
+            streakCountEl.textContent = state.streak;
+            nitroStatusPill.style.opacity = state.streak >= 8 ? '1' : '0.5';
+
+            // RPM & Gear
+            const rpmPct = Math.min(100, Math.max(10, (state.playerSpeedKmh / 300) * 100));
+            rpmBar.style.width = `${rpmPct}%`;
+            gearDisplay.textContent = state.status === 'idle' ? 'N' : state.gear;
+
+            // Mini-map progress bars
+            const pPct = Math.max(2, Math.min(98, state.playerProgress * 100));
+            const aiPct = Math.max(2, Math.min(98, state.aiProgress * 100));
+            playerMiniBar.style.width = `${pPct}%`;
+            playerMiniDot.style.left = `${pPct}%`;
+            aiMiniBar.style.width = `${aiPct}%`;
+            aiMiniDot.style.left = `${aiPct}%`;
+
+            // Position & Gap badge
+            if (state.status === 'idle') {
+                liveRank.textContent = 'P1';
+                liveRank.className = 'font-display font-black text-lg text-mt-main';
+                raceGapBadge.textContent = 'GRID READY';
+                raceGapBadge.className = 'text-xs font-mono px-2.5 py-0.5 rounded-md bg-white/5 text-mt-text border border-white/10 shrink-0';
+            } else {
+                const diff = (state.playerProgress - state.aiProgress) * 100;
+                if (diff >= 0) {
+                    liveRank.textContent = 'P1';
+                    liveRank.className = 'font-display font-black text-lg text-mt-main';
+                    raceGapBadge.textContent = `LEADING +${diff.toFixed(1)}%`;
+                    raceGapBadge.className = 'text-xs font-mono px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0';
+                } else {
+                    liveRank.textContent = 'P2';
+                    liveRank.className = 'font-display font-black text-lg text-rose-400';
+                    raceGapBadge.textContent = `TRAILING ${diff.toFixed(1)}%`;
+                    raceGapBadge.className = 'text-xs font-mono px-2.5 py-0.5 rounded-md bg-rose-500/15 text-rose-400 border border-rose-500/30 shrink-0';
+                }
+            }
+
+            raceTimerEl.textContent = `${state.elapsedTime.toFixed(1)}s`;
+        }
+
+        /**************************************************************
+         * 11. 2-CAR/BIKE RACING CANVAS RENDERER (60FPS PARALLAX + FX)
+         **************************************************************/
+        function resizeRaceCanvas() {
+            const rect = raceCanvas.parentElement.getBoundingClientRect();
+            raceCanvas.width = rect.width * window.devicePixelRatio;
+            raceCanvas.height = rect.height * window.devicePixelRatio;
+            ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+        }
+
+        function spawnExhaustParticle(isPlayer, isNitro) {
+            const rect = raceCanvas.parentElement.getBoundingClientRect();
+            const h = rect.height;
+            const trackTop = h * 0.36;
+            const trackHeight = h * 0.58;
+
+            const laneY = isPlayer
+                ? trackTop + trackHeight * 0.75
+                : trackTop + trackHeight * 0.26;
+
+            const carX = getCarScreenX(isPlayer ? state.playerProgress : state.aiProgress, rect.width);
+
+            state.particles.push({
+                x: carX - 38,
+                y: laneY + (Math.random() - 0.5) * 6,
+                vx: -140 - Math.random() * 90,
+                vy: (Math.random() - 0.5) * 18,
+                size: isNitro ? 5 + Math.random() * 5 : 3 + Math.random() * 4,
+                alpha: 0.9,
+                color: isPlayer
+                    ? (isNitro ? '#00f0ff' : '#e2b714')
+                    : '#f43f5e'
+            });
+        }
+
+        function spawnNitroBurst() {
+            for (let i = 0; i < 14; i++) {
+                spawnExhaustParticle(true, true);
+            }
+        }
+
+        function getCarScreenX(progress, canvasWidth) {
+            const startX = canvasWidth * 0.11;
+            const finishX = canvasWidth * 0.86;
+            return startX + progress * (finishX - startX);
+        }
+
+        function renderRaceTrack(dt) {
+            const rect = raceCanvas.parentElement.getBoundingClientRect();
+            const w = rect.width;
+            const h = rect.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // 1. Night Cyber-Motorsport Sky Gradient
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.4);
+            skyGrad.addColorStop(0, '#090b10');
+            skyGrad.addColorStop(1, '#161924');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, w, h * 0.4);
+
+            // 2. Parallax City Skyline Silhouette
+            const parallaxSlow = (state.cameraScrollX * 0.15) % 320;
+            ctx.fillStyle = '#12151f';
+            for (let x = -parallaxSlow; x < w + 320; x += 80) {
+                const bHeight = 22 + ((Math.sin(x * 0.05) + 1) * 16);
+                ctx.fillRect(x, h * 0.36 - bHeight, 55, bHeight);
+                ctx.fillStyle = 'rgba(226, 183, 20, 0.12)';
+                ctx.fillRect(x + 10, h * 0.36 - bHeight + 6, 8, 4);
+                ctx.fillRect(x + 28, h * 0.36 - bHeight + 14, 8, 4);
+                ctx.fillStyle = '#12151f';
+            }
+
+            // 3. Track Dimensions
+            const trackTop = h * 0.36;
+            const trackHeight = h * 0.58;
+            const trackBottom = trackTop + trackHeight;
+
+            // Asphalt Surface
+            const roadGrad = ctx.createLinearGradient(0, trackTop, 0, trackBottom);
+            roadGrad.addColorStop(0, '#1c1e24');
+            roadGrad.addColorStop(0.5, '#242730');
+            roadGrad.addColorStop(1, '#191b20');
+            ctx.fillStyle = roadGrad;
+            ctx.fillRect(0, trackTop, w, trackHeight);
+
+            // 4. Scrolling Red/White FIA Racing Curbs
+            const curbWidth = 36;
+            const scrollOffset = state.cameraScrollX % (curbWidth * 2);
+            for (let x = -scrollOffset - curbWidth * 2; x < w + curbWidth * 2; x += curbWidth) {
+                const isEven = Math.round((x + scrollOffset) / curbWidth) % 2 === 0;
+                ctx.fillStyle = isEven ? '#e11d48' : '#e5e7eb';
+                ctx.fillRect(x, trackTop - 6, curbWidth, 6);
+                ctx.fillStyle = isEven ? '#e2b714' : '#27272a';
+                ctx.fillRect(x, trackBottom, curbWidth, 7);
+            }
+
+            // 5. Center Lane Divider (Dashed Scrolling Lines)
+            const midY = trackTop + trackHeight * 0.5;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([28, 28]);
+            ctx.lineDashOffset = state.cameraScrollX % 56;
+            ctx.beginPath();
+            ctx.moveTo(0, midY);
+            ctx.lineTo(w, midY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Lane Watermark Labels
+            ctx.font = '700 11px Orbitron, sans-serif';
+            ctx.fillStyle = 'rgba(244, 63, 94, 0.22)';
+            ctx.fillText(`LANE 01 // AI RIVAL (${state.aiVehicleType.toUpperCase()})`, 18, trackTop + 20);
+            ctx.fillStyle = 'rgba(226, 183, 20, 0.25)';
+            ctx.fillText(`LANE 02 // PLAYER 1 (${state.vehicleType.toUpperCase()})`, 18, midY + 20);
+
+            // 6. Start Grid Line & Checkered Finish Line on Track
+            const startX = getCarScreenX(0, w);
+            const finishX = getCarScreenX(1.0, w);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+            ctx.fillRect(startX + 24, trackTop, 3, trackHeight);
+
+            const checkerSize = 8;
+            for (let y = trackTop; y < trackBottom; y += checkerSize) {
+                const row = Math.floor((y - trackTop) / checkerSize);
+                ctx.fillStyle = row % 2 === 0 ? '#ffffff' : '#111111';
+                ctx.fillRect(finishX + 22, y, checkerSize, checkerSize);
+                ctx.fillStyle = row % 2 === 0 ? '#111111' : '#ffffff';
+                ctx.fillRect(finishX + 22 + checkerSize, y, checkerSize, checkerSize);
+            }
+
+            // 7. Update & Render Exhaust / Nitro Particles
+            for (let i = state.particles.length - 1; i >= 0; i--) {
+                const p = state.particles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.alpha -= dt * 2.2;
+                p.size += dt * 8;
+
+                if (p.alpha <= 0) {
+                    state.particles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // 8. Draw AI Vehicle (Top Lane) & Player Vehicle (Bottom Lane)
+            const aiY = trackTop + trackHeight * 0.26;
+            const playerY = trackTop + trackHeight * 0.75;
+
+            const aiX = getCarScreenX(state.aiProgress, w);
+            const playerX = getCarScreenX(state.playerProgress, w);
+
+            drawRaceVehicle(ctx, aiX, aiY, state.aiVehicleType, '#f43f5e', '#881337', state.aiSpeedKmh, false, 'AI');
+
+            const isNitroActive = state.streak >= 15 && state.status === 'racing';
+            drawRaceVehicle(
+                ctx,
+                playerX,
+                playerY,
+                state.vehicleType,
+                isNitroActive ? '#00f0ff' : '#e2b714',
+                '#78350f',
+                state.playerSpeedKmh,
+                isNitroActive,
+                'YOU'
+            );
+        }
+
+        function drawRaceVehicle(ctx, x, y, type, primaryColor, darkColor, speedKmh, isNitro, tagText) {
+            ctx.save();
+            ctx.translate(x, y);
+
+            const bounce = speedKmh > 15 ? Math.sin(performance.now() * 0.035) * 1.1 : 0;
+            ctx.translate(0, bounce);
+
+            // Headlight Cone Glow
+            const headGrad = ctx.createLinearGradient(28, 0, 135, 0);
+            headGrad.addColorStop(0, isNitro ? 'rgba(0, 240, 255, 0.38)' : 'rgba(255, 245, 200, 0.25)');
+            headGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = headGrad;
+            ctx.beginPath();
+            ctx.moveTo(26, -6);
+            ctx.lineTo(135, -22);
+            ctx.lineTo(135, 22);
+            ctx.lineTo(26, 6);
+            ctx.closePath();
+            ctx.fill();
+
+            // Nitro Flame Jet behind exhaust
+            if (speedKmh > 40) {
+                const flameLen = isNitro ? 28 + Math.random() * 14 : 12 + Math.random() * 8;
+                const flameGrad = ctx.createLinearGradient(-34, 0, -34 - flameLen, 0);
+                flameGrad.addColorStop(0, '#ffffff');
+                flameGrad.addColorStop(0.4, isNitro ? '#00f0ff' : '#f59e0b');
+                flameGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = flameGrad;
+                ctx.beginPath();
+                ctx.moveTo(-32, -4);
+                ctx.lineTo(-34 - flameLen, 0);
+                ctx.lineTo(-32, 4);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            if (type === 'bike') {
+                // === STANDARD RACING SUPERBIKE ===
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.beginPath();
+                ctx.ellipse(0, 9, 28, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#09090b';
+                ctx.strokeStyle = primaryColor;
+                ctx.lineWidth = 2;
+                [-18, 19].forEach(wx => {
+                    ctx.beginPath();
+                    ctx.arc(wx, 5, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                });
+
+                ctx.fillStyle = primaryColor;
+                ctx.beginPath();
+                ctx.moveTo(-22, 2);
+                ctx.lineTo(-8, -9);
+                ctx.lineTo(14, -10);
+                ctx.lineTo(28, 1);
+                ctx.lineTo(10, 6);
+                ctx.lineTo(-16, 5);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = '#1f2937';
+                ctx.beginPath();
+                ctx.ellipse(-2, -9, 10, 5, -0.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(9, -12, 5.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#00f0ff';
+                ctx.fillRect(9, -14, 5, 3);
+            } else {
+                // === STANDARD GT RACING CAR ===
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.beginPath();
+                ctx.roundRect(-38, -13, 76, 28, 10);
+                ctx.fill();
+
+                ctx.fillStyle = '#09090b';
+                ctx.fillRect(-26, -16, 14, 5);
+                ctx.fillRect(14, -16, 14, 5);
+                ctx.fillRect(-26, 11, 14, 5);
+                ctx.fillRect(14, 11, 14, 5);
+
+                ctx.fillStyle = primaryColor;
+                ctx.beginPath();
+                ctx.roundRect(-34, -13, 68, 26, [6, 12, 12, 6]);
+                ctx.fill();
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+                ctx.fillRect(-30, -3, 62, 6);
+
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.roundRect(-14, -9, 28, 18, 5);
+                ctx.fill();
+
+                ctx.fillStyle = '#18181b';
+                ctx.fillRect(-37, -14, 6, 28);
+                ctx.fillStyle = primaryColor;
+                ctx.fillRect(-37, -14, 6, 3);
+                ctx.fillRect(-37, 11, 6, 3);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(31, -10, 3, 5);
+                ctx.fillRect(31, 5, 3, 5);
+
+                ctx.fillStyle = '#ff1e42';
+                ctx.fillRect(-35, -10, 2, 6);
+                ctx.fillRect(-35, 4, 2, 6);
+            }
+
+            // Floating Driver Tag Pill Above Vehicle
+            const dispUnitMult = state.useMph ? 0.621371 : 1;
+            const speedNum = Math.round(speedKmh * dispUnitMult);
+            ctx.fillStyle = 'rgba(15, 17, 23, 0.85)';
+            ctx.beginPath();
+            ctx.roundRect(-32, -32, 64, 15, 4);
+            ctx.fill();
+            ctx.strokeStyle = primaryColor;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '700 9px JetBrains Mono, monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${tagText} ${speedNum}`, 0, -22);
+
+            ctx.restore();
+        }
+
+        /**************************************************************
+         * 12. MAIN ANIMATION LOOP & BULLETPROOF EVENT LISTENERS
+         **************************************************************/
+        let lastFrameTime = performance.now();
+
+        function gameLoop(now) {
+            const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+            lastFrameTime = now;
+
+            updateRacePhysics(dt, now);
+            renderRaceTrack(dt);
+            updateDashboardUI();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 1. Primary Physical Keyboard Handler (Desktop / Laptop)
+        window.addEventListener('keydown', (e) => {
+            if (e.getModifierState && e.getModifierState('CapsLock')) {
+                document.getElementById('caps-warning').classList.remove('hidden');
+            } else {
+                document.getElementById('caps-warning').classList.add('hidden');
+            }
+
+            // Quick Restart Shortcuts: Tab + Enter or Escape
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                state.tabPressed = true;
+                setTimeout(() => { state.tabPressed = false; }, 1200);
+                return;
+            }
+
+            if (e.key === 'Escape' || (e.key === 'Enter' && (state.tabPressed || state.status === 'finished'))) {
+                e.preventDefault();
+                state.tabPressed = false;
+                resetRace(false);
+                return;
+            }
+
+            // Ignore OS/browser shortcuts
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+            // If key is Backspace or any printable character, process it directly and prevent default
+            // so the hidden input NEVER fires a duplicate 'input' event!
+            if (e.key === 'Backspace' || e.key.length === 1) {
+                e.preventDefault();
+                unfocusedOverlay.classList.add('hidden');
+                processTypingKey(e.key);
+            }
+        });
+
+        // 2. Fallback Mobile Virtual Keyboard Handler (only fires if keydown didn't handle it)
+        typingInput.addEventListener('input', () => {
+            const now = performance.now();
+            if (now - state.lastHandledKeyTime < 35) {
+                typingInput.value = '';
+                return;
+            }
+            const val = typingInput.value;
+            if (val.length > 0) {
+                for (let i = 0; i < val.length; i++) {
+                    processTypingKey(val[i]);
+                }
+                typingInput.value = '';
+            }
+        });
+
+        // Click anywhere in the document or typing area to focus engine
+        document.addEventListener('click', (e) => {
+            sound.init();
+            // If user clicked a button, blur the button so Space/Enter never re-triggers it
+            const btn = e.target.closest('button');
+            if (btn) {
+                btn.blur();
+            }
+            focusTypingEngine();
+        });
+
+        window.addEventListener('blur', () => {
+            if (state.status === 'racing') {
+                unfocusedOverlay.classList.remove('hidden');
+            }
+        });
+
+        window.addEventListener('focus', () => {
+            unfocusedOverlay.classList.add('hidden');
+        });
+
+        // Button Controls (all automatically blur & return focus to typing engine)
+        document.getElementById('restart-btn').addEventListener('click', (e) => {
+            e.currentTarget.blur();
+            resetRace(true);
+        });
+        document.getElementById('new-track-btn').addEventListener('click', (e) => {
+            e.currentTarget.blur();
+            resetRace(false);
+        });
+        document.getElementById('modal-next-btn').addEventListener('click', (e) => {
+            e.currentTarget.blur();
+            resetRace(false);
+        });
+
+        // AI Difficulty Buttons
+        document.querySelectorAll('.ai-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.currentTarget.blur();
+                document.querySelectorAll('.ai-btn').forEach(b => {
+                    b.className = 'ai-btn px-2 py-1 rounded-md text-mt-sub hover:text-white transition';
+                });
+                btn.className = 'ai-btn active px-2 py-1 rounded-md bg-mt-main/20 text-mt-main font-semibold transition';
+                state.aiTargetWpm = parseInt(btn.getAttribute('data-ai'), 10);
+                aiTargetWpmLabel.textContent = state.aiTargetWpm;
+                resetRace(true);
+            });
+        });
+
+        // Passage Mode Buttons
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.currentTarget.blur();
+                document.querySelectorAll('.mode-btn').forEach(b => {
+                    b.className = 'mode-btn px-2 py-1 rounded-md text-mt-sub hover:text-white transition';
+                });
+                btn.className = 'mode-btn active px-2 py-1 rounded-md bg-white/10 text-white transition';
+                state.mode = btn.getAttribute('data-mode');
+                resetRace(false);
+            });
+        });
+
+        // Typing Error Mode Toggle (Flow Mode vs Strict Stop-on-Error Mode)
+        document.getElementById('strict-toggle-btn').addEventListener('click', (e) => {
+            e.currentTarget.blur();
+            state.strictMode = !state.strictMode;
+            const btn = e.currentTarget;
+            const icon = document.getElementById('strict-icon');
+            const label = document.getElementById('strict-label');
+            if (state.strictMode) {
+                btn.className = 'px-2 py-1 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition flex items-center gap-1';
+                icon.className = 'ph-fill ph-lock-key';
+                label.textContent = 'Strict Mode';
+            } else {
+                btn.className = 'px-2 py-1 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition flex items-center gap-1';
+                icon.className = 'ph-fill ph-waves';
+                label.textContent = 'Flow Mode';
+            }
+            focusTypingEngine();
+        });
+
+        // Player Vehicle Toggle (Standard Car vs Standard Bike)
+        document.getElementById('vehicle-toggle-btn').addEventListener('click', (e) => {
+            e.currentTarget.blur();
+            state.vehicleType = state.vehicleType === 'car' ? 'bike' : 'car';
+            const icon = document.getElementById('vehicle-icon');
+            const label = document.getElementById('vehicle-label');
+            if (state.vehicleType === 'bike') {
+                icon.className = 'ph-fill ph-motorcycle';
+                label.textContent = 'You: Bike';
+            } else {
+                icon.className = 'ph-fill ph-car-profile';
+                label.textContent = 'You: Car';
+            }
+            focusTypingEngine();
+        });
+
+        // AI Rival Vehicle Toggle (Standard Bike vs Standard Car)
+        document.getElementById('ai-vehicle-toggle-btn').addEventListener('click', (e) => {
+            e.currentTarget.blur();
+            state.aiVehicleType = state.aiVehicleType === 'bike' ? 'car' : 'bike';
+            const icon = document.getElementById('ai-vehicle-icon');
+            const label = document.getElementById('ai-vehicle-label');
+            if (state.aiVehicleType === 'bike') {
+                icon.className = 'ph-fill ph-motorcycle';
+                label.textContent = 'AI: Bike';
+            } else {
+                icon.className = 'ph-fill ph-car-profile';
+                label.textContent = 'AI: Car';
+            }
+            focusTypingEngine();
+        });
+
+        // Speed Unit Toggle (KM/H vs MPH)
+        document.getElementById('unit-toggle-btn').addEventListener('click', (e) => {
+            e.currentTarget.blur();
+            state.useMph = !state.useMph;
+            const unitStr = state.useMph ? 'MPH' : 'KM/H';
+            e.currentTarget.textContent = unitStr;
+            document.querySelectorAll('.unit-label').forEach(el => el.textContent = unitStr);
+            updateDashboardUI();
+            focusTypingEngine();
+        });
+
+        // Sound Mute Toggle
+        document.getElementById('sound-toggle-btn').addEventListener('click', (e) => {
+            e.currentTarget.blur();
+            sound.enabled = !sound.enabled;
+            const btn = e.currentTarget;
+            const icon = document.getElementById('sound-icon');
+            const label = document.getElementById('sound-label');
+
+            if (sound.enabled) {
+                btn.className = 'px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition flex items-center gap-1';
+                icon.className = 'ph-fill ph-speaker-high';
+                label.textContent = 'Audio ON';
+            } else {
+                sound.updateEngineRPM(0, 1, false, state.vehicleType);
+                btn.className = 'px-2.5 py-1 rounded-md bg-white/5 text-mt-sub border border-white/10 hover:text-white transition flex items-center gap-1';
+                icon.className = 'ph-fill ph-speaker-slash';
+                label.textContent = 'Muted';
+            }
+            focusTypingEngine();
+        });
+
+        window.addEventListener('resize', () => {
+            resizeRaceCanvas();
+            updateCaretPosition();
+        });
+
+        // Initialize on Window Load
+        window.onload = function () {
+            resizeRaceCanvas();
+            resetRace(false);
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
